@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavController
 import com.example.data.Product
+import com.example.data.SaleRecord
+import com.example.data.ScanHistoryEntry
 import com.example.ui.ProductViewModel
 import com.example.util.Localization
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -384,9 +386,15 @@ fun DashboardScreen(navController: NavController, viewModel: ProductViewModel) {
     val allProducts by viewModel.allProducts.collectAsState()
     val lowStockProducts by viewModel.lowStockProducts.collectAsState()
     val nearExpiryProducts by viewModel.nearExpiryProducts.collectAsState()
+    val todaySales by viewModel.todaySales.collectAsState()
+    val recentScans by viewModel.recentScans.collectAsState()
 
-    // Calculate dynamic profit total
+    // Calculate dynamic profit totals
     val totalProfit = allProducts.sumOf { (it.salePrice - it.buyPrice) * it.stock }
+    val totalProductsCount = allProducts.size
+    val totalStockSum = allProducts.sumOf { it.stock }
+    val todaySalesAmount = todaySales.sumOf { it.salePrice * it.quantity }
+    val todayProfitAmount = todaySales.sumOf { (it.salePrice - it.buyPrice) * it.quantity }
 
     Box(
         modifier = Modifier
@@ -569,6 +577,178 @@ fun DashboardScreen(navController: NavController, viewModel: ProductViewModel) {
                     }
                 }
 
+                // --- NEW 2x2 DUKAAN METRICS OVERVIEW ---
+                item(span = { GridItemSpan(2) }) {
+                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                        Text(
+                            text = "DUKAAN SUMMARY (خلا صہ)",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF94A3B8),
+                                letterSpacing = 1.5.sp
+                            ),
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Total Listings Card
+                            Card(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(72.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                border = BorderStroke(1.dp, Color(0xFF334155))
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text("Listings (پروڈکٹس)", style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp, color = Color(0xFF94A3B8)))
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("$totalProductsCount Items", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Color.White))
+                                }
+                            }
+                            // Total Stock remaining Card
+                            Card(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(72.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                border = BorderStroke(1.dp, Color(0xFF334155))
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text("Total Stock (کل اسٹاک)", style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp, color = Color(0xFF94A3B8)))
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("${df.format(totalStockSum)} Qty", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8)))
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(10.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Today's Sales Card
+                            Card(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(72.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                border = BorderStroke(1.dp, Color(0xFF334155))
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text("Today Sales (آج کی فروخت)", style = MaterialTheme.typography.bodySmall.copy(fontSize = 8.sp, color = Color(0xFF94A3B8)))
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("Rs. ${df.format(todaySalesAmount)}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Color(0xFF22C55E)))
+                                }
+                            }
+                            // Expected Profit Card
+                            Card(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(72.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                border = BorderStroke(1.dp, Color(0xFF334155))
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text("Estimated Profit (کل منافع)", style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp, color = Color(0xFF94A3B8)))
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("Rs. ${df.format(totalProfit)}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Color(0xFFF59E0B)))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- COLLAPSIBLE RECENT SCAN HISTORY ---
+                if (recentScans.isNotEmpty()) {
+                    item(span = { GridItemSpan(2) }) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                            border = BorderStroke(1.dp, Color(0xFF334155).copy(alpha = 0.5f))
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Icon(Icons.Default.History, contentDescription = null, size = 18.dp, tint = Color(0xFFF59E0B))
+                                        Text(
+                                            text = "RECENT SCANS (حالیہ اسکین)",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { viewModel.clearScanHistory() },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Clear", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    recentScans.take(3).forEach { scan ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(Color(0xFF0F172A), RoundedCornerShape(10.dp))
+                                                .clickable { navController.navigate("product_detail/${scan.barcode}") }
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Icon(Icons.Default.QrCode, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
+                                                Text(
+                                                    text = scan.productName,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Color.White)
+                                                )
+                                            }
+                                            val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault())
+                                            val timeString = sdf.format(java.util.Date(scan.timestamp))
+                                            Text(
+                                                text = timeString,
+                                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF94A3B8), fontSize = 10.sp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Item 2: Add Product
                 item {
                     DashboardButtonModern(
@@ -599,7 +779,7 @@ fun DashboardScreen(navController: NavController, viewModel: ProductViewModel) {
 
                 // Item 4: Daily Profit
                 item {
-                    val profitString = if (totalProfit > 0) "Rs. ${df.format(totalProfit)} Aaj" else "Rs. 4,520 Aaj"
+                    val profitString = "Rs. ${df.format(todayProfitAmount)} Aaj"
                     DashboardButtonModern(
                         title = translate("menu_profit", viewModel),
                         arabicSubtitle = profitString,
@@ -867,6 +1047,23 @@ fun ScannerScreen(navController: NavController, viewModel: ProductViewModel) {
     
     val context = LocalContext.current
 
+    // QUICK ADD SYSTEM STATES
+    var showQuickAddDialog by remember { mutableStateOf(false) }
+    var scannedBarcodeToQuickAdd by remember { mutableStateOf("") }
+    var quickProdName by remember { mutableStateOf("") }
+    var quickSalePrice by remember { mutableStateOf("") }
+    var quickBuyPrice by remember { mutableStateOf("") }
+    var quickStock by remember { mutableStateOf("") }
+    var quickCategory by remember { mutableStateOf("Grocery") }
+    var quickExpiry by remember { mutableStateOf("") }
+    var showQuickBoxCalc by remember { mutableStateOf(false) }
+    var quickBoxCount by remember { mutableStateOf("") }
+    var quickPacketsPerBox by remember { mutableStateOf("") }
+    
+    // SELL CONFIRMATION SYSTEM STATES
+    var showSellProductDialog by remember { mutableStateOf(false) }
+    var matchedProductToSell by remember { mutableStateOf<Product?>(null) }
+
     // Viewfinder Scanner laser animation
     val infiniteTransition = rememberInfiniteTransition(label = "laser")
     val lineOffset by infiniteTransition.animateFloat(
@@ -895,16 +1092,24 @@ fun ScannerScreen(navController: NavController, viewModel: ProductViewModel) {
                     val previewView = PreviewView(ctx)
                     val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
                     cameraProviderFuture.addListener({
-                        val cameraProvider = cameraProviderFuture.get()
-                        val preview = Preview.Builder().build().also {
-                            it.setSurfaceProvider(previewView.surfaceProvider)
-                        }
-                        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
                         try {
-                            cameraProvider.unbindAll()
-                            cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview)
+                            val cameraProvider = cameraProviderFuture.get()
+                            val preview = Preview.Builder().build().also {
+                                it.setSurfaceProvider(previewView.surfaceProvider)
+                            }
+                            val cameraSelector = when {
+                                cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA) -> CameraSelector.DEFAULT_BACK_CAMERA
+                                cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) -> CameraSelector.DEFAULT_FRONT_CAMERA
+                                else -> null
+                            }
+                            if (cameraSelector != null) {
+                                cameraProvider.unbindAll()
+                                cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview)
+                            } else {
+                                android.util.Log.e("ScannerScreen", "No available camera found on this device!")
+                            }
                         } catch (exc: Exception) {
-                            exc.printStackTrace()
+                            android.util.Log.e("ScannerScreen", "CameraX initialization failed", exc)
                         }
                     }, ContextCompat.getMainExecutor(ctx))
                     previewView
@@ -1079,11 +1284,17 @@ fun ScannerScreen(navController: NavController, viewModel: ProductViewModel) {
                                 viewModel.processScannedBarcode(
                                     barcode = manualBarcodetext,
                                     onMatch = { product ->
-                                        navController.navigate("product_detail/${product.barcode}")
+                                        matchedProductToSell = product
+                                        showSellProductDialog = true
                                     },
                                     onNoMatch = { barcode ->
-                                        Toast.makeText(context, String.format(translateSimple("scan_not_found", viewModel), barcode), Toast.LENGTH_LONG).show()
-                                        navController.navigate("add_edit_product?barcode=$barcode")
+                                        scannedBarcodeToQuickAdd = barcode
+                                        quickProdName = ""
+                                        quickSalePrice = ""
+                                        quickBuyPrice = ""
+                                        quickStock = ""
+                                        showQuickAddDialog = true
+                                        Toast.makeText(context, "Register standard details below", Toast.LENGTH_SHORT).show()
                                     }
                                 )
                             }
@@ -1125,8 +1336,9 @@ fun ScannerScreen(navController: NavController, viewModel: ProductViewModel) {
                                     .clickable {
                                         viewModel.processScannedBarcode(
                                             barcode = prod.barcode,
-                                            onMatch = {
-                                                navController.navigate("product_detail/${prod.barcode}")
+                                            onMatch = { product ->
+                                                matchedProductToSell = product
+                                                showSellProductDialog = true
                                             },
                                             onNoMatch = {}
                                         )
@@ -1151,6 +1363,372 @@ fun ScannerScreen(navController: NavController, viewModel: ProductViewModel) {
                 }
             }
         }
+
+        // --- GORGEOUS REAL QUICK ADD PRODUCT DIALOG POPUP ---
+        if (showQuickAddDialog) {
+            AlertDialog(
+                onDismissRequest = { showQuickAddDialog = false },
+                title = {
+                    Text(
+                        "Quick Add Product (نیا مال شامل کریں)",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Color(0xFFF59E0B))
+                    )
+                },
+                text = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Barcode ID: $scannedBarcodeToQuickAdd",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF22C55E),
+                            fontWeight = FontWeight.Bold
+                        )
+                        OutlinedTextField(
+                            value = quickProdName,
+                            onValueChange = { quickProdName = it },
+                            label = { Text("Product Name (نام)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = quickBuyPrice,
+                                onValueChange = { quickBuyPrice = it },
+                                label = { Text("Buy Price Rs.") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = quickSalePrice,
+                                onValueChange = { quickSalePrice = it },
+                                label = { Text("Sale Price Rs.") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        // Stock Multiplier Box Calculator
+                        TextButton(
+                            onClick = { showQuickBoxCalc = !showQuickBoxCalc },
+                            modifier = Modifier.align(Alignment.Start)
+                        ) {
+                            Icon(
+                                imageVector = if (showQuickBoxCalc) Icons.Default.Cancel else Icons.Default.Calculate,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (showQuickBoxCalc) "Hide Box Calculator (باکس کیلکولیٹر چھپائیں)" else "Use Box Calculator? (باکس کیلکولیٹر کھولیں)",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        if (showQuickBoxCalc) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = quickBoxCount,
+                                    onValueChange = { newValue ->
+                                        quickBoxCount = newValue
+                                        val boxes = newValue.toIntOrNull()
+                                        val pps = quickPacketsPerBox.toIntOrNull()
+                                        if (boxes != null && pps != null) {
+                                            quickStock = (boxes * pps).toString()
+                                        }
+                                    },
+                                    label = { Text("Box count (باکس تعداد)", fontSize = 11.sp) },
+                                    placeholder = { Text("e.g. 2") },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = quickPacketsPerBox,
+                                    onValueChange = { newValue ->
+                                        quickPacketsPerBox = newValue
+                                        val boxes = quickBoxCount.toIntOrNull()
+                                        val pps = newValue.toIntOrNull()
+                                        if (boxes != null && pps != null) {
+                                            quickStock = (boxes * pps).toString()
+                                        }
+                                    },
+                                    label = { Text("Packets per Box (پیکٹس)", fontSize = 11.sp) },
+                                    placeholder = { Text("e.g. 12") },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true
+                                )
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = quickStock,
+                            onValueChange = { quickStock = it },
+                            label = { Text("Stock Quantity (کل مقدار / سٹاک)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        OutlinedTextField(
+                            value = quickExpiry,
+                            onValueChange = { quickExpiry = it },
+                            label = { Text("Expiry Date (میعاد کی تاریخ) [Optional]") },
+                            placeholder = { Text("E.g. 2026-12-31") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val buyVal = quickBuyPrice.toDoubleOrNull() ?: 0.0
+                            val saleVal = quickSalePrice.toDoubleOrNull() ?: 0.0
+                            val stockInt = quickStock.toIntOrNull() ?: 10
+                            if (quickProdName.isNotBlank() && saleVal > 0.0) {
+                                val item = Product(
+                                    barcode = scannedBarcodeToQuickAdd,
+                                    name = quickProdName,
+                                    category = quickCategory,
+                                    buyPrice = buyVal,
+                                    salePrice = saleVal,
+                                    stock = stockInt,
+                                    expiryDate = quickExpiry.ifBlank { "Safe" }
+                                )
+                                viewModel.saveProduct(item)
+                                // Add scan history record
+                                viewModel.logScannedHistoryManual(item)
+                                Toast.makeText(context, "${quickProdName} registered!", Toast.LENGTH_SHORT).show()
+                                
+                                // Reset inputs
+                                quickExpiry = ""
+                                quickBoxCount = ""
+                                quickPacketsPerBox = ""
+                                showQuickBoxCalc = false
+                                
+                                showQuickAddDialog = false
+                                navController.navigate("product_detail/${scannedBarcodeToQuickAdd}")
+                            } else {
+                                Toast.makeText(context, "Name and Sale Price required!", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22C55E))
+                    ) {
+                        Text("Add Stock (جمع کریں)", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { 
+                            showQuickAddDialog = false 
+                            quickExpiry = ""
+                            quickBoxCount = ""
+                            quickPacketsPerBox = ""
+                            showQuickBoxCalc = false
+                        }
+                    ) {
+                        Text("Cancel", color = Color.White.copy(alpha = 0.6f))
+                    }
+                }
+            )
+        }
+
+        // --- REAL-WORLD EXTREMELY VISUAL SELL/CANCEL CONFIRMATION POPUP FOR SHOPKEEPERS ---
+        if (showSellProductDialog && matchedProductToSell != null) {
+            val productToSell = matchedProductToSell!!
+            val isOutOfStock = productToSell.stock <= 0
+            val profitVal = productToSell.salePrice - productToSell.buyPrice
+            
+            AlertDialog(
+                onDismissRequest = { 
+                    showSellProductDialog = false 
+                    matchedProductToSell = null
+                },
+                title = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Product Detected! (مال مل گیا)",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Black,
+                                color = if (isOutOfStock) Color(0xFFEF4444) else Color(0xFF22C55E)
+                            )
+                        )
+                        if (isOutOfStock) {
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(0xFFEF4444).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(0xFFEF4444), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "OUT OF STOCK (سٹاک ختم)",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFEF4444)
+                                )
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(0x1A22C55E), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(0xFF22C55E), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "AVAILABLE (${productToSell.stock} Pcs)",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF22C55E)
+                                )
+                            }
+                        }
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Product Name
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Name (نام):", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
+                            Text(productToSell.name, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Color.White))
+                        }
+                        
+                        Divider(color = Color(0xFF334155).copy(alpha = 0.5f))
+                        
+                        // Sale Price
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Sale Price (فروخت قیمت):", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
+                            Text("Rs. ${df.format(productToSell.salePrice)}", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Black, color = Color(0xFFF59E0B)))
+                        }
+
+                        Divider(color = Color(0xFF334155).copy(alpha = 0.5f))
+
+                        // Stock
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Stock (باقی مقدار):", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
+                            Text(
+                                text = "${productToSell.stock} pkts / units",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isOutOfStock) Color(0xFFEF4444) else Color(0xFF38BDF8)
+                                )
+                            )
+                        }
+
+                        Divider(color = Color(0xFF334155).copy(alpha = 0.5f))
+
+                        // Profit Per Item
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Profit (فی آئٹم منافع):", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
+                            Text("Rs. ${df.format(profitVal)}", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Color(0xFF22C55E)))
+                        }
+
+                        Divider(color = Color(0xFF334155).copy(alpha = 0.5f))
+
+                        // Expiry Status
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Expiry (میعاد کا حال):", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
+                            
+                            val isExp = try {
+                                if (productToSell.expiryDate.isBlank() || productToSell.expiryDate == "Safe") {
+                                    false
+                                } else {
+                                    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                                    val dateObj = sdf.parse(productToSell.expiryDate)
+                                    dateObj != null && dateObj.time < System.currentTimeMillis()
+                                }
+                            } catch (e: Exception) {
+                                false
+                            }
+                            
+                            val expiryText = if (productToSell.expiryDate.isBlank() || productToSell.expiryDate == "Safe") {
+                                "No Expiry Set (میعاد کا پتا نہیں)"
+                            } else {
+                                val cleanDate = productToSell.expiryDate
+                                if (isExp) "EXPIRED! (میعاد ختم: $cleanDate)" else "Fresh (محفوظ: $cleanDate)"
+                            }
+                            
+                            Text(
+                                text = expiryText,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isExp) Color(0xFFEF4444) else Color(0xFF10B981)
+                                )
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (!isOutOfStock) {
+                                viewModel.recordSale(productToSell, 1) {
+                                    viewModel.playSuccessBeep()
+                                    viewModel.voiceAssistant.speakProduct(productToSell.name, productToSell.salePrice)
+                                }
+                                Toast.makeText(context, "${productToSell.name} Sold! (بک گیا)", Toast.LENGTH_SHORT).show()
+                            }
+                            showSellProductDialog = false
+                            matchedProductToSell = null
+                        },
+                        enabled = !isOutOfStock,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF22C55E),
+                            disabledContainerColor = Color(0xFF1E293B)
+                        )
+                    ) {
+                        Text("Sell 1 Unit (فروخت کریں)", color = if (isOutOfStock) Color.Gray else Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = {
+                                showSellProductDialog = false
+                                matchedProductToSell = null
+                                navController.navigate("product_detail/${productToSell.barcode}")
+                            }
+                        ) {
+                            Text("View Info (تفصیلات)", color = Color(0xFF38BDF8))
+                        }
+                        TextButton(
+                            onClick = {
+                                showSellProductDialog = false
+                                matchedProductToSell = null
+                            }
+                        ) {
+                            Text("Cancel (منسوخ کریں)", color = Color.White.copy(alpha = 0.6f))
+                        }
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -1167,6 +1745,9 @@ fun Icon(imageVector: ImageVector, contentDescription: String?, size: androidx.c
 @Composable
 fun ProductDetailsScreen(barcode: String, navController: NavController, viewModel: ProductViewModel) {
     var product by remember { mutableStateOf<Product?>(null) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var quantityToSell by remember { mutableIntStateOf(1) }
+    val context = LocalContext.current
     
     // Fetch product details
     LaunchedEffect(barcode) {
@@ -1362,17 +1943,18 @@ fun ProductDetailsScreen(barcode: String, navController: NavController, viewMode
                                     )
                                     
                                     val isLow = item.stock <= 5
+                                    val isOut = item.stock <= 0
                                     Surface(
-                                        color = if (isLow) MaterialTheme.colorScheme.error.copy(alpha = 0.2f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                        color = if (isOut) Color(0xFFEF4444).copy(alpha = 0.2f) else if (isLow) MaterialTheme.colorScheme.error.copy(alpha = 0.2f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.padding(4.dp)
                                     ) {
                                         Text(
-                                            text = "${item.stock} Items remaining",
+                                            text = if (isOut) "OUT OF STOCK (سٹاک ختم)" else "${item.stock} Items remaining",
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                             style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isLow) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                                                color = if (isOut || isLow) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary
                                             )
                                         )
                                     }
@@ -1400,12 +1982,101 @@ fun ProductDetailsScreen(barcode: String, navController: NavController, viewMode
                         }
                     }
 
-                    // Delete item trigger
+                    // --- GORGEOUS HIGH-PRIORITY SALES REGISTER SECTION ---
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                            border = BorderStroke(1.dp, Color(0xFF334155))
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Text(
+                                    text = "SELL FOR CASH (فروخت کریں)",
+                                    style = MaterialTheme.typography.labelMedium.copy(color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Quantity (تعداد):",
+                                        style = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
+                                    )
+                                    
+                                    // Quantity selector +/-
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        IconButton(
+                                            onClick = { if (quantityToSell > 1) quantityToSell-- },
+                                            modifier = Modifier.background(Color(0xFF334155), CircleShape).size(36.dp)
+                                        ) {
+                                            Icon(Icons.Default.Remove, contentDescription = "Minus", tint = Color.White)
+                                        }
+                                        
+                                        Text(
+                                            text = quantityToSell.toString(),
+                                            style = MaterialTheme.typography.titleLarge.copy(color = Color.White, fontWeight = FontWeight.Black)
+                                        )
+                                        
+                                        IconButton(
+                                            onClick = { if (quantityToSell < item.stock) quantityToSell++ },
+                                            modifier = Modifier.background(Color(0xFF334155), CircleShape).size(36.dp)
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = "Plus", tint = Color.White)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                val totalCashAmount = item.salePrice * quantityToSell
+                                Button(
+                                    onClick = {
+                                        if (item.stock >= quantityToSell) {
+                                            viewModel.recordSale(item, quantityToSell) {
+                                                viewModel.playSuccessBeep()
+                                                viewModel.voiceAssistant.speakProduct(item.name, totalCashAmount)
+                                                Toast.makeText(context, "Rs. ${df.format(totalCashAmount)} Sale Recorded Successfully!", Toast.LENGTH_SHORT).show()
+                                                navController.popBackStack()
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "Insufficient stock!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    enabled = item.stock > 0,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF22C55E),
+                                        disabledContainerColor = Color(0xFF475569)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(52.dp)
+                                        .testTag("details_sell_button")
+                                ) {
+                                    Icon(Icons.Default.Payments, contentDescription = null, tint = Color.White)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Sell (فروخت کریں) - Rs. ${df.format(totalCashAmount)}",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Delete and Edit triggers
                     item {
                         Button(
                             onClick = {
-                                viewModel.deleteProduct(item)
-                                navController.popBackStack()
+                                showDeleteDialog = true
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                             shape = RoundedCornerShape(12.dp),
@@ -1427,14 +2098,40 @@ fun ProductDetailsScreen(barcode: String, navController: NavController, viewMode
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp)
+                                        .fillMaxWidth()
+                                        .height(52.dp)
                         ) {
                             Icon(Icons.Default.Edit, contentDescription = null, tint = Color.Black)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Edit Product Settings", fontWeight = FontWeight.Bold, color = Color.Black)
                         }
                     }
+                }
+
+                // --- REAL DATA SAFETY DELETE CONFIRMATION DIALOG ---
+                if (showDeleteDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showDeleteDialog = false },
+                        title = { Text("Product delete karein? (تصدیق)") },
+                        text = { Text("Kya aap waqai '${item.name}' ko stock se mukamal tor par kharij karna chahte hain?") },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    viewModel.deleteProduct(item)
+                                    showDeleteDialog = false
+                                    navController.popBackStack()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                            ) {
+                                Text("Haan, Delete Karein")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDeleteDialog = false }) {
+                                Text("Nahi, Cancel")
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -1458,6 +2155,11 @@ fun AddEditProductScreen(barcodeParam: String?, navController: NavController, vi
     var salePriceStr by remember { mutableStateOf("") }
     var stockStr by remember { mutableStateOf("") }
     var expiryDate by remember { mutableStateOf("") }
+    
+    // BOX CALCULATOR STATES
+    var showBoxCalc by remember { mutableStateOf(false) }
+    var boxCount by remember { mutableStateOf("") }
+    var packetsPerBox by remember { mutableStateOf("") }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -1635,6 +2337,64 @@ fun AddEditProductScreen(barcodeParam: String?, navController: NavController, vi
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
                         Column(modifier = Modifier.padding(20.dp)) {
+                            // Box Calculator Toggle
+                            TextButton(
+                                onClick = { showBoxCalc = !showBoxCalc },
+                                modifier = Modifier.align(Alignment.Start)
+                            ) {
+                                Icon(
+                                    imageVector = if (showBoxCalc) Icons.Default.Cancel else Icons.Default.Calculate,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (showBoxCalc) "Hide Box Calculator (باکس کیلکولیٹر چھپائیں)" else "Use Box Calculator? (باکس کیلکولیٹر کھولیں)",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            if (showBoxCalc) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = boxCount,
+                                        onValueChange = { newValue ->
+                                            boxCount = newValue
+                                            val boxes = newValue.toIntOrNull()
+                                            val pps = packetsPerBox.toIntOrNull()
+                                            if (boxes != null && pps != null) {
+                                                stockStr = (boxes * pps).toString()
+                                            }
+                                        },
+                                        label = { Text("Box count (باکس تعداد)", fontSize = 11.sp) },
+                                        placeholder = { Text("e.g. 2") },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true
+                                    )
+                                    OutlinedTextField(
+                                        value = packetsPerBox,
+                                        onValueChange = { newValue ->
+                                            packetsPerBox = newValue
+                                            val boxes = boxCount.toIntOrNull()
+                                            val pps = newValue.toIntOrNull()
+                                            if (boxes != null && pps != null) {
+                                                stockStr = (boxes * pps).toString()
+                                            }
+                                        },
+                                        label = { Text("Packets per Box (پیکٹس)", fontSize = 11.sp) },
+                                        placeholder = { Text("e.g. 12") },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+
                             // Stock Count
                             OutlinedTextField(
                                 value = stockStr,
@@ -1720,14 +2480,28 @@ fun ReportsScreen(navController: NavController, viewModel: ProductViewModel) {
     val allProducts by viewModel.allProducts.collectAsState()
     val lowStockProducts by viewModel.lowStockProducts.collectAsState()
     val nearExpiryProducts by viewModel.nearExpiryProducts.collectAsState()
+    val allSales by viewModel.allSales.collectAsState()
+    val todaySales by viewModel.todaySales.collectAsState()
+    
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val filteredProducts by viewModel.filteredProducts.collectAsState()
 
-    // Tab Index: 0 -> General, 1 -> Low stock list, 2 -> Expiry Alerts
+    // Tab Index: 0 -> General, 1 -> Daily Sales, 2 -> Low stock list, 3 -> Expiry Alerts
     var activeTab by remember { mutableIntStateOf(0) }
+
+    // Dialogue confirmation state
+    var showClearSalesDialog by remember { mutableStateOf(false) }
+    var saleToReverse by remember { mutableStateOf<com.example.data.SaleRecord?>(null) }
 
     // Aggregate Calculations
     val totalProducts = allProducts.size
     val totalStockSum = allProducts.sumOf { it.stock }
     val estimatedProfitSum = allProducts.sumOf { (it.salePrice - it.buyPrice) * it.stock }
+    
+    // Today Sales calculations
+    val todaySalesAmount = todaySales.sumOf { it.salePrice * it.quantity }
+    val todayProfitAmount = todaySales.sumOf { (it.salePrice - it.buyPrice) * it.quantity }
+    val todaySoldItemsCount = todaySales.sumOf { it.quantity }
 
     Box(
         modifier = Modifier
@@ -1755,8 +2529,134 @@ fun ReportsScreen(navController: NavController, viewModel: ProductViewModel) {
                 )
             }
 
-            // Quick Tabs Selector
-            TabRow(
+            // --- SIMPLE HIGHLY FUNCTIONAL SEARCH BAR ---
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.search(it) },
+                placeholder = { Text("Search by Name or Barcode (نام یا بارکوڈ تلاش کریں)") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, size = 20.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.search("") }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear", size = 20.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .testTag("reports_search_field"),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            if (searchQuery.isNotBlank()) {
+                // --- DYNAMIC SEARCH RESULTS LIST VIEW DISPLAY ---
+                Text(
+                    text = "Search Results (تلاش کے نتائج) - ${filteredProducts.size} found",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+                
+                if (filteredProducts.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No matching products found! (کوئی مال نہیں ملا)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(filteredProducts) { prod ->
+                            val isOutOfStock = prod.stock <= 0
+                            val isLowStock = prod.stock <= 5 && !isOutOfStock
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { navController.navigate("product_detail/${prod.barcode}") },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isOutOfStock) Color(0xFFEF4444).copy(alpha = 0.6f) 
+                                    else if (isLowStock) Color(0xFFF59E0B).copy(alpha = 0.6f)
+                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .padding(16.dp)
+                                        .fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = prod.name,
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Color.White)
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Barcode: ${prod.barcode} | Cat: ${prod.category}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(
+                                            text = "Rs. ${df.format(prod.salePrice)}",
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, color = Color(0xFF22C55E))
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .background(
+                                                    if (isOutOfStock) Color(0x33EF4444)
+                                                    else if (isLowStock) Color(0x33F59E0B)
+                                                    else Color(0x2238BDF8),
+                                                    RoundedCornerShape(6.dp)
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isOutOfStock) "Out of Stock (ختم)" 
+                                                       else if (isLowStock) "Low Stock (${prod.stock})"
+                                                       else "Stock: ${prod.stock} pkts",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isOutOfStock) Color(0xFFEF4444)
+                                                        else if (isLowStock) Color(0xFFF59E0B)
+                                                        else Color(0xFF38BDF8)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Quick Tabs Selector - 4 distinct tabs
+                TabRow(
                 selectedTabIndex = activeTab,
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.primary
@@ -1764,16 +2664,21 @@ fun ReportsScreen(navController: NavController, viewModel: ProductViewModel) {
                 Tab(
                     selected = activeTab == 0,
                     onClick = { activeTab = 0 },
-                    text = { Text("Stats Overview") }
+                    text = { Text("Overview") }
                 )
                 Tab(
                     selected = activeTab == 1,
                     onClick = { activeTab = 1 },
-                    text = { Text("Low Stock (${lowStockProducts.size})") }
+                    text = { Text("Daily Sales") }
                 )
                 Tab(
                     selected = activeTab == 2,
                     onClick = { activeTab = 2 },
+                    text = { Text("Low Stock (${lowStockProducts.size})") }
+                )
+                Tab(
+                    selected = activeTab == 3,
+                    onClick = { activeTab = 3 },
                     text = { Text("Expiring (%d)".format(nearExpiryProducts.size)) }
                 )
             }
@@ -1782,7 +2687,7 @@ fun ReportsScreen(navController: NavController, viewModel: ProductViewModel) {
 
             when (activeTab) {
                 0 -> {
-                    // --- TAB: MAIN METRICS OVERVIEW ---
+                    // --- TAB 0: MAIN METRICS OVERVIEW ---
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1820,6 +2725,17 @@ fun ReportsScreen(navController: NavController, viewModel: ProductViewModel) {
                             )
                         }
 
+                        // Metric Card: Today's Realized cash Sales
+                        item {
+                            MetricBlock(
+                                title = "TODAY'S CASH REGISTER (آج کی فروخت)",
+                                value = "Rs. ${df.format(todaySalesAmount)}",
+                                caption = "Profit today: Rs. ${df.format(todayProfitAmount)} | Volume: $todaySoldItemsCount pieces",
+                                icon = Icons.Default.Paid,
+                                colors = Color(0xFF22C55E)
+                            )
+                        }
+
                         // Metric Card: Total expected earnings / margins
                         item {
                             MetricBlock(
@@ -1833,7 +2749,130 @@ fun ReportsScreen(navController: NavController, viewModel: ProductViewModel) {
                     }
                 }
                 1 -> {
-                    // --- TAB: LOW STOCK PRODUCTS LIST ---
+                    // --- TAB 1: DAILY SALES AND SALES HISTORY ---
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(horizontal = 20.dp)
+                    ) {
+                        // Sticky Sales Summary Card
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                            border = BorderStroke(1.dp, Color(0xFF334155))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text("Today Sales (فروخت)", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
+                                    Text("Rs. ${df.format(todaySalesAmount)}", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black, color = Color(0xFF22C55E)))
+                                }
+                                Column {
+                                    Text("Today Profit (منافع)", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
+                                    Text("Rs. ${df.format(todayProfitAmount)}", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black, color = Color(0xFFF59E0B)))
+                                }
+                                Column {
+                                    Text("Quantity (تعداد)", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
+                                    Text("$todaySoldItemsCount Sold", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black, color = Color(0xFF38BDF8)))
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "SALES RECORDS (کل فروخت)",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8), letterSpacing = 1.2.sp)
+                            )
+                            if (allSales.isNotEmpty()) {
+                                TextButton(onClick = { showClearSalesDialog = true }) {
+                                    Icon(Icons.Default.DeleteForever, contentDescription = null, size = 16.dp, tint = Color(0xFFEF4444))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Clear All", color = Color(0xFFEF4444), fontSize = 12.sp)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        if (allSales.isEmpty()) {
+                            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                Text(
+                                    "No sales registered yet. Sell products through Scanner or Search detail screen first!",
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF94A3B8)),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(24.dp)
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                items(allSales) { sale ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                                        border = BorderStroke(1.dp, Color(0xFF334155))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(sale.productName, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Color.White))
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text("Qty: ${sale.quantity}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF38BDF8))
+                                                    Text("|", style = MaterialTheme.typography.bodySmall, color = Color(0xFF334155))
+                                                    val sdf = java.text.SimpleDateFormat("hh:mm a - dd MMM", java.util.Locale.getDefault())
+                                                    val strTime = sdf.format(java.util.Date(sale.timestamp))
+                                                    Text(strTime, style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
+                                                }
+                                            }
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                Column(horizontalAlignment = Alignment.End) {
+                                                    Text("Rs. ${df.format(sale.salePrice * sale.quantity)}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Color(0xFF22C55E)))
+                                                    val pft = (sale.salePrice - sale.buyPrice) * sale.quantity
+                                                    Text("Profit: Rs. ${df.format(pft)}", style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, color = Color(0xFFF59E0B)))
+                                                }
+                                                // Undo Button
+                                                IconButton(
+                                                    onClick = { saleToReverse = sale },
+                                                    modifier = Modifier
+                                                        .background(Color(0x22EF4444), CircleShape)
+                                                        .size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Undo, contentDescription = "Reverse Sale", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                2 -> {
+                    // --- TAB 2: LOW STOCK PRODUCTS LIST ---
                     if (lowStockProducts.isEmpty()) {
                         EmptyWarningState(msg = "All stock levels are perfectly healthy!")
                     } else {
@@ -1850,8 +2889,8 @@ fun ReportsScreen(navController: NavController, viewModel: ProductViewModel) {
                         }
                     }
                 }
-                2 -> {
-                    // --- TAB: NEAR EXPIRY LIST ---
+                3 -> {
+                    // --- TAB 3: NEAR EXPIRY LIST ---
                     if (nearExpiryProducts.isEmpty()) {
                         EmptyWarningState(msg = "Awesome! No stock expiring within next 30 days!")
                     } else {
@@ -1868,6 +2907,57 @@ fun ReportsScreen(navController: NavController, viewModel: ProductViewModel) {
                         }
                     }
                 }
+            }
+            }
+
+            // --- SALES DIALOG CONFIRMATIONS ---
+            if (showClearSalesDialog) {
+                AlertDialog(
+                    onDismissRequest = { showClearSalesDialog = false },
+                    title = { Text("Clear All Sales? (ساری فروخت مٹائیں)") },
+                    text = { Text("Kya aap waqai aaj tak ki tamaam sales records ko mukammal mitaana chahte hain? Stock counts par asar nahi hoga.") },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                viewModel.clearAllSales()
+                                showClearSalesDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                        ) {
+                            Text("Haan, Clear Karein")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showClearSalesDialog = false }) {
+                            Text("Nahi, Cancel")
+                        }
+                    }
+                )
+            }
+
+            if (saleToReverse != null) {
+                val currentSaleItem = saleToReverse!!
+                AlertDialog(
+                    onDismissRequest = { saleToReverse = null },
+                    title = { Text("Undo Sale? (فروخت منسوخ کریں)") },
+                    text = { Text("Kya aap waqai '${currentSaleItem.productName}' ki is sale (Qty: ${currentSaleItem.quantity}) ko reverse karna chahte hain? Is silsile me product stock waapis add ho jaegi.") },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                viewModel.deleteSale(currentSaleItem)
+                                saleToReverse = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                        ) {
+                            Text("Haan, Reverse Karein")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { saleToReverse = null }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
             }
         }
     }
@@ -2154,26 +3244,66 @@ fun SettingsScreen(navController: NavController, viewModel: ProductViewModel) {
                     }
                 }
 
-                // Data Backup card (Simulated TinyDB export)
+                // Data Backup & Restore Panel (Full local JSON export/import system)
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .clickable {
-                                    Toast.makeText(context, translateSimple("set_backup_success", viewModel), Toast.LENGTH_LONG).show()
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Text(
+                                text = translate("set_backup", viewModel),
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                            Text(
+                                text = "Save product price details, sale records, and scan history to your phone storage locally (data security).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        viewModel.backupData { filePath, success ->
+                                            if (success) {
+                                                Toast.makeText(context, "Backup saved to: $filePath", Toast.LENGTH_LONG).show()
+                                            } else {
+                                                Toast.makeText(context, "Backup failed: $filePath", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22C55E)),
+                                    modifier = Modifier.weight(1f).testTag("backup_button"),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.CloudUpload, contentDescription = null, size = 18.dp, tint = Color.White)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Backup Now", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
-                                .padding(20.dp)
-                                .fillMaxWidth()
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                Column {
-                                    Text(text = translate("set_backup", viewModel), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
-                                    Text(text = "Save current inventory backup locally", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                
+                                Button(
+                                    onClick = {
+                                        viewModel.restoreData(null) { statusText, success ->
+                                            if (success) {
+                                                Toast.makeText(context, "Data restored successfully!", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "Restore error: $statusText", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B)),
+                                    modifier = Modifier.weight(1f).testTag("restore_button"),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.CloudDownload, contentDescription = null, size = 18.dp, tint = Color.White)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Restore", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
                             }
                         }

@@ -20,3 +20,30 @@ data class Product(
     val profit: Double
         get() = salePrice - buyPrice
 }
+
+@Entity(tableName = "sales")
+data class SaleRecord(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val barcode: String,
+    val productName: String,
+    val quantity: Int,
+    val salePrice: Double,
+    val buyPrice: Double,
+    val timestamp: Long = System.currentTimeMillis()
+) : Serializable {
+    val profit: Double
+        get() = (salePrice - buyPrice) * quantity
+    val totalAmount: Double
+        get() = salePrice * quantity
+}
+
+@Entity(tableName = "scan_history")
+data class ScanHistoryEntry(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val barcode: String,
+    val productName: String,
+    val timestamp: Long = System.currentTimeMillis()
+) : Serializable
+

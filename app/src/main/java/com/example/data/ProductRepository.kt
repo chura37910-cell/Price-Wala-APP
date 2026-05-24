@@ -8,6 +8,36 @@ class ProductRepository(private val productDao: ProductDao) {
     
     val lowStockProducts: Flow<List<Product>> = productDao.getLowStockProducts()
 
+    // --- SALES ---
+    val allSales: Flow<List<SaleRecord>> = productDao.getAllSales()
+
+    fun getTodaySales(startOfDay: Long): Flow<List<SaleRecord>> {
+        return productDao.getTodaySales(startOfDay)
+    }
+
+    suspend fun insertSale(sale: SaleRecord) {
+        productDao.insertSale(sale)
+    }
+
+    suspend fun deleteSale(sale: SaleRecord) {
+        productDao.deleteSale(sale)
+    }
+
+    suspend fun clearAllSales() {
+        productDao.clearAllSales()
+    }
+
+    // --- SCAN HISTORY ---
+    val recentScans: Flow<List<ScanHistoryEntry>> = productDao.getRecentScans()
+
+    suspend fun insertScanHistory(entry: ScanHistoryEntry) {
+        productDao.insertScanHistory(entry)
+    }
+
+    suspend fun clearScanHistory() {
+        productDao.clearScanHistory()
+    }
+
     fun searchProducts(query: String): Flow<List<Product>> {
         return productDao.searchProducts(query)
     }

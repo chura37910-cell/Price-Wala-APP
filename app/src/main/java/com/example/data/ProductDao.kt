@@ -31,4 +31,30 @@ interface ProductDao {
 
     @Query("SELECT COUNT(*) FROM products")
     fun getProductCount(): Flow<Int>
+
+    // --- SALE RECORD QUERIES ---
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSale(sale: SaleRecord)
+
+    @Query("SELECT * FROM sales ORDER BY timestamp DESC")
+    fun getAllSales(): Flow<List<SaleRecord>>
+
+    @Query("SELECT * FROM sales WHERE timestamp >= :startOfDay ORDER BY timestamp DESC")
+    fun getTodaySales(startOfDay: Long): Flow<List<SaleRecord>>
+
+    @Delete
+    suspend fun deleteSale(sale: SaleRecord)
+
+    @Query("DELETE FROM sales")
+    suspend fun clearAllSales()
+
+    // --- SCAN HISTORY QUERIES ---
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertScanHistory(entry: ScanHistoryEntry)
+
+    @Query("SELECT * FROM scan_history ORDER BY timestamp DESC LIMIT 20")
+    fun getRecentScans(): Flow<List<ScanHistoryEntry>>
+
+    @Query("DELETE FROM scan_history")
+    suspend fun clearScanHistory()
 }
