@@ -1,0 +1,6 @@
+{
+  "name": "PriceWala",
+  "description": "Smart Dukaan Partner - grocery and karyana store management app with offline database, barcode scan simulation, TTS alert voice assistant, profit reporting, and stock/expiry indicators.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
